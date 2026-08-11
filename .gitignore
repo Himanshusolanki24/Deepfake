@@ -1,0 +1,33 @@
+# --- Python / backend ---
+backend/.venv/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+backend/dev.db
+backend/dev.db-shm
+backend/dev.db-wal
+backend/storage/
+backend/models/
+
+# --- Node / frontend ---
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/tsconfig.tsbuildinfo
+frontend/npm-debug.log*
+
+# --- Env files (keep examples) ---
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+!.env.example
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

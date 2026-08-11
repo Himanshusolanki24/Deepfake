@@ -1,0 +1,13 @@
+import { chromium } from "playwright";
+const page = await (await chromium.launch()).newPage();
+await page.goto("http://localhost:3001/analyze", { waitUntil: "networkidle" });
+await page.waitForTimeout(500);
+const ol = await page.locator('ol[aria-label="Analysis workflow"]').count();
+const lis = await page.locator('ol[aria-label="Analysis workflow"] > li').count();
+console.log("stepper ol:", ol, "steps:", lis);
+await page.getByRole("button", { name: /reset to recommended/i }).first().click().catch(()=>{});
+await page.waitForTimeout(300);
+const errs = [];
+page.on("console", m => m.type()==="error" && errs.push(m.text()));
+console.log("errors:", errs.length ? errs : "none");
+await (await (await chromium.launch()).newPage()).close();

@@ -1,0 +1,59 @@
+[project]
+name = "authentiq-backend"
+version = "0.1.0"
+description = "AUTHENTIQ - explainable digital media authenticity verification backend"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+exclude = [".venv", "storage", "models", "tests_legacy"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "RUF", "S", "PERF", "SIM"]
+ignore = [
+    "E501",
+    "BLE001",   # intentional best-effort fallbacks
+    "S110",     # try/except/pass is deliberate for optional integrations
+    "ASYNC230", # local file storage is acceptable
+    "S105",     # 'change-me' dev secret
+    "S106",
+    "N803",
+    "N815",     # camelCase fields are the frontend API contract
+    "B008",     # FastAPI Depends-in-default pattern
+    "UP042",    # str+Enum is intentional for DB/JSON compat
+    "S603",     # subprocess uses controlled argv lists, never shell=True
+    "S112",
+    "S102",
+    "PERF401",
+    "PERF402",
+    "PERF403",
+    "RUF015",
+    "RUF046",
+    "SIM102",
+    "B904",
+    "SIM105",
+    "SIM115",
+    "UP046",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]
+"app/tests/**/*.py" = ["S101"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+check_untyped_defs = false
+warn_unused_ignores = false
+exclude = ["tests", ".venv"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["app/tests", "tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
