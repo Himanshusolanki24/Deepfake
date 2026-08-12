@@ -16,6 +16,7 @@ class MediaInfo(BaseModel):
     width: int | None = None
     height: int | None = None
     codec: str | None = None
+    media_quality: dict | None = None
 
 
 class Assessment(BaseModel):
@@ -24,6 +25,9 @@ class Assessment(BaseModel):
     raw_probability: float | None = None
     confidence_interval: dict[str, float] | None = None
     explanation: str
+    uncertainty: float | None = None
+    agreement: float | None = None
+    thresholds_used: dict[str, float] | None = None
 
 
 class SignalSummary(BaseModel):

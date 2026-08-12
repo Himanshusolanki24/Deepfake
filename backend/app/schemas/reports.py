@@ -24,6 +24,9 @@ class SignalResultOut(BaseModel):
     explanation: str
     technical: list[str] = Field(default_factory=list)
     evidence: list[SignalEvidence] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+    supportingDetails: list[str] = Field(default_factory=list)
+    detectorName: str | None = None
 
 
 class SuspiciousFrameOut(BaseModel):
@@ -137,6 +140,13 @@ class AnalysisResponse(BaseModel):
     models: dict[str, str] = Field(default_factory=dict)
     processing: dict | None = None
     limitations: list[str] = Field(default_factory=list)
+
+    # --- Engine upgrade structure ---
+    cross_modal: dict | None = None
+    media_quality: dict | None = None
+    engine_version: str | None = None
+    signal_agreement: float | None = None
+    uncertainty: float | None = None
 
 
 class AnalysisListResponse(BaseModel):

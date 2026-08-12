@@ -11,7 +11,12 @@ export type SignalId =
   | "physiological"
   | "av-sync"
   | "metadata"
-  | "voice-spectral";
+  | "voice-spectral"
+  | "compression"
+  | "ai-generated"
+  | "lighting"
+  | "face-tracking"
+  | "speech-synthetic";
 
 export interface Evidence {
   id: string;
@@ -30,6 +35,8 @@ export interface SignalResult {
   explanation: string;
   technical?: string[];
   evidence?: Evidence[];
+  limitations?: string[];
+  supportingDetails?: string[];
 }
 
 export interface SuspiciousFrame {

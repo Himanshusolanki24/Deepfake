@@ -42,12 +42,36 @@ MEDIA_TYPE_BY_EXT: dict[str, str] = {
 
 
 def detect_mime_by_content(data: bytes) -> str | None:
-    if len(data) < 16:
+    """Sniff MIME from magic bytes.
+
+    Container signatures are matched most-specific-first so that RIFF-family
+    formats (WebP / AVI / WAV, all starting with ``RIFF``) are disambiguated
+    by their FourCC at offset 8, and ISO-BMFF family (MP4 / MOV) by their
+    ``ftyp`` major brand.
+    """
+    if len(data) < 8:
         return None
-    for mime, sigs in MAGIC_SIGNATURES.items():
-        for sig in sigs:
-            if data.startswith(sig):
-                return mime
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith((b"\xff\xfb", b"\xff\xf3", b"\xff\xf2", b"ID3")):
+        return "audio/mpeg"
+    if data.startswith(b"RIFF") and len(data) >= 12:
+        fourcc = data[8:12]
+        if fourcc == b"WEBP":
+            return "image/webp"
+        if fourcc == b"AVI ":
+            return "video/x-msvideo"
+        if fourcc == b"WAVE":
+            return "audio/wav"
+        return None
+    ftyp = data.find(b"ftyp", 4, 12)
+    if ftyp != -1 and ftyp + 4 <= len(data):
+        brand = data[ftyp + 4:ftyp + 8]
+        if brand == b"qt  ":
+            return "video/quicktime"
+        return "video/mp4"
     return None
 
 

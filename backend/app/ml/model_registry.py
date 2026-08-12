@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +20,18 @@ class ModelSpec:
     input_size: tuple[int, int] | None = None
     device: str = "cpu"
     is_mock: bool = False
+    family: str = "forensic"
+    task: str = "classification"
+    backbone: str = ""
+    release_date: str = ""
+    license: str = "unknown"
+    supported_modalities: list[str] = field(default_factory=list)
+    memory_mb: int | None = None
+    input_format: str = ""
+    output_spec: str = ""
+    description: str = ""
+    paper_url: str | None = None
+    benchmark_accuracy: float | None = None
 
     @property
     def full_name(self) -> str:
@@ -35,6 +47,18 @@ class ModelSpec:
             "input_size": list(self.input_size) if self.input_size else None,
             "device": self.device,
             "is_mock": self.is_mock,
+            "family": self.family,
+            "task": self.task,
+            "backbone": self.backbone,
+            "release_date": self.release_date,
+            "license": self.license,
+            "supported_modalities": self.supported_modalities,
+            "memory_mb": self.memory_mb,
+            "input_format": self.input_format,
+            "output_spec": self.output_spec,
+            "description": self.description,
+            "paper_url": self.paper_url,
+            "benchmark_accuracy": self.benchmark_accuracy,
         }
 
 
@@ -142,6 +166,17 @@ def _register_defaults(registry: ModelRegistry) -> None:
             input_size=(224, 224),
             device=s.model_device,
             is_mock=mock,
+            family="image-spatial",
+            task="classification",
+            backbone="efficientnet-b0",
+            release_date="2021-01-01",
+            license="apache-2.0",
+            supported_modalities=["image"],
+            memory_mb=280 if not mock else 0,
+            input_format="RGB 224x224 tensor",
+            output_spec="classifier logits",
+            description="Spatial-texture manipulation classifier.",
+            benchmark_accuracy=None,
         )
     )
     registry.register(
@@ -151,6 +186,12 @@ def _register_defaults(registry: ModelRegistry) -> None:
             framework="signal-processing",
             is_mock=mock,
             device=s.model_device,
+            family="image-frequency",
+            task="anomaly-detection",
+            supported_modalities=["image", "audio"],
+            input_format="2D FFT magnitude",
+            output_spec="harmonic anomaly map",
+            description="Frequency-domain (DCT/FFT) artifact analysis.",
         )
     )
     registry.register(
@@ -160,6 +201,12 @@ def _register_defaults(registry: ModelRegistry) -> None:
             framework="signal-processing",
             is_mock=mock,
             device=s.model_device,
+            family="video-temporal",
+            task="anomaly-detection",
+            supported_modalities=["video"],
+            input_format="frame-score series",
+            output_spec="segment anomalies",
+            description="Frame-to-frame consistency analysis.",
         )
     )
     registry.register(
@@ -169,6 +216,12 @@ def _register_defaults(registry: ModelRegistry) -> None:
             framework="signal-processing",
             is_mock=mock,
             device=s.model_device,
+            family="audio-voice",
+            task="anomaly-detection",
+            supported_modalities=["audio", "video"],
+            input_format="mono PCM 16k",
+            output_spec="spectral/prosody scores",
+            description="Voice spectral and prosody analysis.",
         )
     )
     registry.register(
@@ -177,6 +230,10 @@ def _register_defaults(registry: ModelRegistry) -> None:
             version="1.0.0",
             framework="rule-based",
             is_mock=False,
+            family="provenance",
+            task="rule-based",
+            supported_modalities=["image", "video", "audio"],
+            description="EXIF, container and C2PA provenance checks.",
         )
     )
     registry.register(
@@ -185,6 +242,10 @@ def _register_defaults(registry: ModelRegistry) -> None:
             version="1.0.0",
             framework="ensemble",
             is_mock=True,
+            family="fusion",
+            task="ensemble",
+            supported_modalities=["image", "video", "audio"],
+            description="Weighted/learned ensemble of independent detectors.",
         )
     )
     registry.register(
@@ -193,6 +254,12 @@ def _register_defaults(registry: ModelRegistry) -> None:
             version="1.0.0",
             framework="signal-processing",
             is_mock=True,
+            family="video-physiological",
+            task="regression",
+            supported_modalities=["video"],
+            input_format="face region frames",
+            output_spec="heart-rate estimate",
+            description="Remote photoplethysmography physiological estimator.",
         )
     )
     registry.register(
@@ -201,5 +268,84 @@ def _register_defaults(registry: ModelRegistry) -> None:
             version="1.0.0",
             framework="signal-processing",
             is_mock=True,
+            family="video-av-sync",
+            task="regression",
+            supported_modalities=["video"],
+            input_format="audio + frame features",
+            output_spec="synchronization correlation",
+            description="Audio-visual lip-sync correlation analysis.",
         )
     )
+    registry.register(
+        ModelSpec(
+            name="compression-detector-v1",
+            version="1.0.0",
+            framework="signal-processing",
+            is_mock=mock,
+            family="image-compression",
+            task="anomaly-detection",
+            supported_modalities=["image"],
+            input_format="single RGB image",
+            output_spec="blockiness + harmonic scores",
+            description="JPEG/HEVC blocking and double-compression detection.",
+        )
+    )
+    registry.register(
+        ModelSpec(
+            name="ai-generated-detector-v1",
+            version="1.0.0",
+            framework="signal-processing",
+            is_mock=mock,
+            family="image-abstraction",
+            task="anomaly-detection",
+            supported_modalities=["image"],
+            input_format="single RGB image",
+            output_spec="abstraction statistics",
+            description="Statistical abstraction fingerprint of diffusion output.",
+        )
+    )
+    registry.register(
+        ModelSpec(
+            name="lighting-detector-v1",
+            version="1.0.0",
+            framework="signal-processing",
+            is_mock=mock,
+            family="video-lighting",
+            task="anomaly-detection",
+            supported_modalities=["video"],
+            input_format="frame luminance series",
+            output_spec="illumination trajectory",
+            description="Temporal illumination-consistency analysis.",
+        )
+    )
+    registry.register(
+        ModelSpec(
+            name="face-tracking-detector-v1",
+            version="1.0.0",
+            framework="signal-processing",
+            is_mock=mock,
+            family="video-face",
+            task="tracking-analysis",
+            supported_modalities=["video"],
+            input_format="face bounding-box series",
+            output_spec="track stability + appearance contrast",
+            description="Face track continuity and identity-contrast analysis.",
+        )
+    )
+    registry.register(
+        ModelSpec(
+            name="speech-synthetic-detector-v1",
+            version="1.0.0",
+            framework="signal-processing",
+            is_mock=mock,
+            family="audio-abstraction",
+            task="anomaly-detection",
+            supported_modalities=["audio", "video"],
+            input_format="mono PCM 16k",
+            output_spec="spectral flatness + prosody regularity",
+            description="Abstraction-level synthetic speech detector.",
+        )
+    )
+
+
+ENGINE_VERSION = "0.2.0"

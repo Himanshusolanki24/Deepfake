@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { AnalysisResult } from "@/types/analysis";
 import type { MediaFile } from "@/types/media";
-import { api, mockAnalyzeToId } from "@/lib/api";
+import { api, mockAnalyzeToId, USE_MOCKS_FLAG } from "@/lib/api";
 import { buildUploadedResult } from "@/mocks/resultFactory";
 
 export function useHistory() {
@@ -22,6 +22,11 @@ export function useAnalysis(id: string) {
     enabled: !!id,
     staleTime: 10 * 60_000,
     gcTime: 30 * 60_000,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (status === "queued" || status === "processing") return 1500;
+      return false;
+    },
   });
 }
 
@@ -42,13 +47,18 @@ export function useStartAnalysis() {
           type: file.mimeType,
         }, signals)
         .then((r) => r.id);
-      return { id, result: buildUploadedResult(file, id, signals) };
+      const result = USE_MOCKS_FLAG ? buildUploadedResult(file, id, signals) : undefined;
+      return { id, result };
     },
     onSuccess: ({ result }) => {
-      queryClient.setQueryData<AnalysisResult[]>(["history"], (old) =>
-        old ? [result, ...old] : [result]
-      );
-      queryClient.setQueryData(["analysis", result.id], result);
+      if (result) {
+        queryClient.setQueryData<AnalysisResult[]>(["history"], (old) =>
+          old ? [result, ...old] : [result]
+        );
+        queryClient.setQueryData(["analysis", result.id], result);
+      } else {
+        void queryClient.invalidateQueries({ queryKey: ["history"] });
+      }
     },
   });
 }
@@ -57,8 +67,16 @@ export function useGenerateBatchResult() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ file, signals }: { file: MediaFile; signals: string[] }) => {
-      const id = mockAnalyzeToId(file.filename);
-      const result = buildUploadedResult(file, id, signals);
+      const id = USE_MOCKS_FLAG
+        ? mockAnalyzeToId(file.filename)
+        : (await api.analyzeMedia(file.type, {
+            name: file.filename,
+            size: file.size,
+            type: file.mimeType,
+          }, signals)).id;
+      const result = USE_MOCKS_FLAG
+        ? buildUploadedResult(file, id, signals)
+        : await api.getAnalysis(id);
       return { id, result };
     },
     onSuccess: ({ result }) => {

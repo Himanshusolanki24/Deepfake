@@ -261,6 +261,7 @@ export default function AnalyzePage() {
               caseId={caseId || "VID-2026-00XXX"}
               filename={entry.file.filename}
               active
+              analysisId={caseId || undefined}
               onComplete={goToResult}
             />
             {resultReady && (

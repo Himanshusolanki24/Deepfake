@@ -1,4 +1,4 @@
-import type { AnalysisResult } from "@/types/analysis";
+import type { AnalysisResult, SignalResult } from "@/types/analysis";
 import type { MediaType } from "@/types/media";
 import { DEMO_ANALYSIS_BY_ID, HISTORY_ANALYSES } from "@/mocks/analyses";
 import { listRegisteredAnalyses, lookupRegisteredAnalysis } from "@/mocks/registry";
@@ -47,10 +47,12 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     });
     if (!res.ok) {
       const payload = await res.json().catch(() => null);
+      const code = payload?.error?.code ?? payload?.code;
+      const message = payload?.error?.message ?? payload?.detail ?? payload?.message;
       throw new ApiError(
         res.status,
-        payload?.detail ?? "Analysis service is temporarily unavailable.",
-        payload?.code
+        message ?? "Analysis service is temporarily unavailable.",
+        code ?? "UNKNOWN_ERROR"
       );
     }
     return (await res.json()) as T;
@@ -70,6 +72,47 @@ export interface AnalysisProgressEvent {
   status: "pending" | "active" | "done";
   detail?: string;
   progress: number;
+}
+
+/** Raw AnalysisResponse returned by the compat endpoints. */
+interface BackendAnalysis {
+  id: string;
+  mediaType: MediaType;
+  filename: string;
+  previewUrl?: string | null;
+  verdict: AnalysisResult["verdict"];
+  confidence: number;
+  confidenceInterval?: { lower: number; upper: number } | null;
+  explanation: string;
+  signals: SignalResult[];
+  suspiciousFrames?: AnalysisResult["suspiciousFrames"];
+  frequencyData?: AnalysisResult["frequencyData"];
+  heatmapRegions?: AnalysisResult["heatmapRegions"];
+  timeline?: AnalysisResult["timeline"];
+  metadata?: AnalysisResult["metadata"];
+  audioAnalysis?: AnalysisResult["audioAnalysis"];
+  processingTime?: number | null;
+  status: AnalysisResult["status"];
+  createdAt: string;
+}
+
+const pct = (v: number | null | undefined): number =>
+  v == null ? 0 : Math.round(v * 100);
+
+function normalizeAnalysis(raw: BackendAnalysis): AnalysisResult {
+  return {
+    ...raw,
+    previewUrl: raw.previewUrl ?? undefined,
+    confidence: pct(raw.confidence),
+    confidenceInterval: raw.confidenceInterval
+      ? {
+          lower: pct(raw.confidenceInterval.lower),
+          upper: pct(raw.confidenceInterval.upper),
+        }
+      : undefined,
+    processingTime:
+      raw.processingTime != null ? Math.round(raw.processingTime / 100) / 10 : undefined,
+  };
 }
 
 export const ANALYSIS_STEPS = [
@@ -93,7 +136,7 @@ export const api = {
       if (!result) throw new ApiError(404, "Analysis not found.", "NOT_FOUND");
       return result;
     }
-    return request<AnalysisResult>(`/analysis/${id}`);
+    return normalizeAnalysis(await request<BackendAnalysis>(`/analysis/${id}`));
   },
 
   async getHistory(): Promise<AnalysisResult[]> {
@@ -101,7 +144,8 @@ export const api = {
       await delay(300);
       return [...listRegisteredAnalyses(), ...HISTORY_ANALYSES];
     }
-    return request<AnalysisResult[]>("/analysis/history");
+    const rows = await request<BackendAnalysis[]>("/analysis/history");
+    return rows.map(normalizeAnalysis);
   },
 
   async analyzeMedia(
@@ -115,7 +159,7 @@ export const api = {
     }
     return request<{ id: string }>(`/analyze/${mediaType}`, {
       method: "POST",
-      body: { filename: file.name, size: file.size, mimeType: file.type, signals },
+      body: { filename: file.name, size: file.size, mime_type: file.type, signals },
     });
   },
 
@@ -137,7 +181,8 @@ export const api = {
       await delay(200);
       return HISTORY_ANALYSES.slice(0, 8);
     }
-    return request<AnalysisResult[]>("/analysis/batch");
+    const rows = await request<BackendAnalysis[]>("/analysis/batch");
+    return rows.map(normalizeAnalysis);
   },
 };
 

@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 # Test with SQLite in-memory unless DATABASE_URL is explicitly provided.
-os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///./test_authentiq.db")
+os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:////tmp/authentiq_test.db")
 os.environ.setdefault("USE_IN_PROCESS_TASKS", "true")
 os.environ.setdefault("USE_MOCK_MODELS", "true")
 os.environ.setdefault("STORAGE_PATH", "./storage-test")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from ...config import get_settings
 from ...ml.model_registry import get_registry
@@ -11,31 +12,46 @@ settings = get_settings()
 # relative reliability of each forensic signal per media type.
 ENSEMBLE_WEIGHTS: dict[str, dict[str, float]] = {
     "image": {
-        "spatial": 0.35,
-        "frequency": 0.30,
-        "metadata": 0.20,
+        "spatial": 0.30,
+        "frequency": 0.24,
+        "metadata": 0.16,
+        "compression": 0.08,
+        "ai-generated": 0.12,
         "av-sync": 0.0,
         "physiological": 0.0,
         "temporal": 0.0,
         "voice-spectral": 0.0,
+        "lighting": 0.0,
+        "face-tracking": 0.0,
+        "speech-synthetic": 0.0,
     },
     "video": {
-        "spatial": 0.22,
-        "frequency": 0.18,
-        "temporal": 0.25,
-        "physiological": 0.08,
-        "av-sync": 0.22,
-        "metadata": 0.05,
+        "spatial": 0.20,
+        "frequency": 0.16,
+        "temporal": 0.22,
+        "physiological": 0.06,
+        "av-sync": 0.18,
+        "metadata": 0.04,
         "voice-spectral": 0.0,
+        "compression": 0.0,
+        "ai-generated": 0.0,
+        "lighting": 0.05,
+        "face-tracking": 0.07,
+        "speech-synthetic": 0.02,
     },
     "audio": {
-        "voice-spectral": 0.7,
-        "metadata": 0.2,
+        "voice-spectral": 0.6,
+        "metadata": 0.15,
         "frequency": 0.1,
+        "speech-synthetic": 0.15,
         "spatial": 0.0,
         "temporal": 0.0,
         "physiological": 0.0,
         "av-sync": 0.0,
+        "compression": 0.0,
+        "ai-generated": 0.0,
+        "lighting": 0.0,
+        "face-tracking": 0.0,
     },
 }
 
@@ -48,7 +64,7 @@ class MetaClassifier:
     model_version = "fusion-v1"
 
     def __init__(self) -> None:
-        self._model = None
+        self._model: Any = None
         self._weight_path: str | None = None
 
     def load(self) -> None:
@@ -92,6 +108,22 @@ class MetaClassifier:
 
         weighted = sum(normalized.get(k, 0.0) * w for k, w in weights.items())
         return float(min(1.0, max(0.0, weighted / denom)))
+
+    def predict_with_agreement(
+        self,
+        scores: dict[str, float | None],
+        media_type: str,
+        *,
+        agreement: float = 1.0,
+        n_signals: int = 1,
+    ) -> tuple[float, float]:
+        """Return (fused probability, uncertainty) where uncertainty grows as
+        independent signals disagree or the evidence base is thin."""
+        probability = self.predict(scores, media_type)
+        base = 0.25 * (1.0 - float(agreement))
+        thin_evidence = 0.15 * (1.0 - min(n_signals, 5) / 5.0)
+        uncertainty = float(min(0.8, base + thin_evidence))
+        return probability, uncertainty
 
     def versions(self) -> dict[str, str]:
         return {"fusion": self.model_version}

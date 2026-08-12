@@ -172,4 +172,24 @@ async def compat_media(
     return Response(content=data, media_type=mime)
 
 
+@router.get("/media/{folder}/{filename}")
+async def compat_media_flat(
+    folder: str,
+    filename: str,
+) -> Response:
+    """Serve stored original media (e.g. ``originals/<analysis_id>.png``)."""
+    from fastapi.responses import Response
+
+    from ..utils.files import detect_mime_by_extension
+
+    storage = StorageService.from_settings()
+    key = f"{folder}/{filename}"
+    try:
+        data = await storage.get(key)
+    except Exception as exc:
+        raise AnalysisNotFoundError(message="Media artifact not found.") from exc
+    mime = detect_mime_by_extension(filename) or "application/octet-stream"
+    return Response(content=data, media_type=mime)
+
+
 

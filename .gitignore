@@ -7,8 +7,12 @@ backend/.venv/
 backend/dev.db
 backend/dev.db-shm
 backend/dev.db-wal
+backend/*.db
 backend/storage/
+backend/storage-test/
 backend/models/
+storage/
+models/
 
 # --- Node / frontend ---
 frontend/node_modules/

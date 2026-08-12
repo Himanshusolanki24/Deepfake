@@ -85,7 +85,9 @@ class Settings(BaseSettings):
     verdict_suspicious_max: float = 0.80
 
     # --- CORS ---
-    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+    cors_origins: list[str] = Field(
+        default_factory=lambda: ["http://localhost:3000", "http://localhost:3001"]
+    )
 
     # --- Observability ---
     log_level: str = "INFO"

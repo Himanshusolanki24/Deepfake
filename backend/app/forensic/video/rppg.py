@@ -44,7 +44,14 @@ class RPPGAnalyzer:
             return RPPGResult(score=None, model_version=self.model_version,
                               status="insufficient_evidence",
                               explanation="Video could not be opened for rPPG analysis.")
-        cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+        from .face_detection import build_face_detector
+
+        detect = build_face_detector()
+        if detect is None:
+            cap.release()
+            return RPPGResult(score=None, model_version=self.model_version,
+                              status="insufficient_evidence",
+                              explanation="No face detector available for rPPG analysis.")
 
         r_vals: list[float] = []
         count = 0
@@ -56,7 +63,7 @@ class RPPGAnalyzer:
                 count += 1
                 continue
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
+            faces = detect(frame, gray)
             if len(faces) > 0:
                 x, y, w, h = faces[0]
                 roi = frame[y + int(h * 0.2): y + h, x: x + w]

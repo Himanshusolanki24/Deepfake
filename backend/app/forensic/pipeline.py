@@ -12,11 +12,22 @@ from typing import Any
 from ..config import get_settings
 from ..core.exceptions import InvalidMediaError
 from ..db.enums import MediaType, SignalType
+from ..forensic.evidence_engine import build_consensus, context_notes
 from ..forensic.fusion.calibration import get_calibrator
 from ..forensic.fusion.meta_classifier import get_meta_classifier
 from ..forensic.fusion.scoring import assess, severity_for_score
+from ..forensic.image.ai_generated import AIGeneratedAbstractionAnalyzer
+from ..forensic.image.compression import CompressionAnalyzer
 from ..forensic.image.frequency import FFTSpatialFrequencyAnalyzer
 from ..forensic.image.heatmap import generate_heatmap
+from ..forensic.interface import DetectorContext
+from ..forensic.media.quality import (
+    MediaQuality,
+    assess_quality,
+    degraded_confidence,
+    normalize_image,
+    quality_limitations,
+)
 from ..forensic.signals import (
     AudioResult,
     MetadataResult,
@@ -24,7 +35,9 @@ from ..forensic.signals import (
     SignalResult,
     TemporalResult,
 )
+from ..forensic.video.face_tracking import FaceTrackingAnalyzer
 from ..forensic.video.frame_extractor import FrameExtractor
+from ..forensic.video.lighting import LightingConsistencyAnalyzer
 from ..forensic.video.temporal import TemporalAnalyzer
 from ..ml.inference import (
     get_audio_detector,
@@ -33,7 +46,7 @@ from ..ml.inference import (
     get_rppg_detector,
     get_spatial_detector,
 )
-from ..ml.model_registry import get_registry
+from ..ml.model_registry import ENGINE_VERSION, get_registry
 from ..services.storage_service import StorageService
 
 settings = get_settings()
@@ -61,12 +74,17 @@ class PipelineOutcome:
     audio_analysis: dict[str, Any] | None = None
     artifacts: dict[str, str | None] = field(default_factory=dict)
     fused_probability: float | None = None
-    calibrated: dict[str, float] = field(default_factory=dict)
+    calibrated: dict[str, Any] = field(default_factory=dict)
     verdict: str | None = None
     explanation: str = ""
     models: dict[str, str] = field(default_factory=dict)
     duration_ms: int = 0
     media_details: dict[str, Any] = field(default_factory=dict)
+    media_quality: dict[str, Any] | None = None
+    cross_modal: dict[str, Any] | None = None
+    engine_version: str | None = None
+    uncertainty: float | None = None
+    agreement_score: float | None = None
 
 
 class AnalysisPipeline:
@@ -83,14 +101,26 @@ class AnalysisPipeline:
         work_dir = Path(tempfile.mkdtemp(prefix="authentiq-"))
         registry = get_registry()
         outcome.models = registry.versions_used()
+        outcome.engine_version = ENGINE_VERSION
 
         try:
+            await self._report("VALIDATION", 2, "Validating media integrity")
+            quality = await asyncio.to_thread(assess_quality, media_type, media_path)
+            outcome.media_quality = quality.to_dict() if quality else None
+            outcome.media_details["media_quality"] = outcome.media_quality
+
+            effective_path = media_path
+            if media_type == MediaType.image.value and quality and not quality.is_acceptable:
+                effective_path = await asyncio.to_thread(
+                    normalize_image, media_path, str(work_dir)
+                )
+
             if media_type == MediaType.image.value:
-                await self._run_image(media_path, analysis_id, outcome, work_dir)
+                await self._run_image(effective_path, quality, analysis_id, outcome, work_dir)
             elif media_type == MediaType.video.value:
-                await self._run_video(media_path, analysis_id, outcome, work_dir)
+                await self._run_video(effective_path, quality, analysis_id, outcome, work_dir)
             elif media_type == MediaType.audio.value:
-                await self._run_audio(media_path, analysis_id, outcome, work_dir)
+                await self._run_audio(effective_path, quality, analysis_id, outcome, work_dir)
             else:
                 raise InvalidMediaError(message=f"Unknown media type: {media_type}")
 
@@ -101,35 +131,48 @@ class AnalysisPipeline:
             shutil.rmtree(work_dir, ignore_errors=True)
 
     # ------------------------------------------------------------- image
-    async def _run_image(self, media_path: str, analysis_id: str, outcome: PipelineOutcome,
-                         work_dir: Path) -> None:
-        await self._report("VALIDATION", 4, "Validating image integrity")
-        await asyncio.sleep(0)
+    async def _run_image(self, media_path: str, quality: MediaQuality | None, analysis_id: str,
+                         outcome: PipelineOutcome, work_dir: Path) -> None:
+        limitations = quality_limitations(quality)
 
-        await self._report("SPATIAL_ANALYSIS", 25, "Analyzing spatial artifacts")
+        await self._report("SPATIAL_ANALYSIS", 20, "Analyzing spatial artifacts")
         spatial = await get_spatial_detector().analyze(media_path)
         if spatial.score is not None:
             outcome.signals.append(SignalResult(
                 signal_type=SignalType.spatial.value,
-                score=spatial.score, confidence=spatial.confidence,
+                score=spatial.score,
+                confidence=degraded_confidence(quality, spatial.confidence),
                 severity=severity_for_score(spatial.score).value,
                 explanation=spatial.explanation,
                 model_version=spatial.model_version,
                 details={"regions": spatial.regions},
+                limitations=list(limitations),
             ))
             outcome.heatmap_regions = spatial.regions
 
-        await self._report("FREQUENCY_ANALYSIS", 45, "Analyzing frequency-domain artifacts")
+        await self._report("COMPRESSION_ANALYSIS", 33, "Detecting compression artifacts")
+        compression = await CompressionAnalyzer().analyze(DetectorContext.for_media(
+            MediaType.image.value, media_path))
+        outcome.signals.extend(compression)
+
+        await self._report("AI_GENERATED_ANALYSIS", 40, "Checking abstraction statistics")
+        ai_generated = await AIGeneratedAbstractionAnalyzer().analyze(DetectorContext.for_media(
+            MediaType.image.value, media_path))
+        outcome.signals.extend(ai_generated)
+
+        await self._report("FREQUENCY_ANALYSIS", 50, "Analyzing frequency-domain artifacts")
         analyzer = FFTSpatialFrequencyAnalyzer(spectrum_dir=str(work_dir / "spectra"))
         frequency = await analyzer.analyze(media_path)
         if frequency.score is not None:
             outcome.signals.append(SignalResult(
                 signal_type=SignalType.frequency.value,
-                score=frequency.score, confidence=0.7,
+                score=frequency.score,
+                confidence=degraded_confidence(quality, 0.7),
                 severity=severity_for_score(frequency.score).value,
                 explanation=frequency.explanation,
                 model_version=frequency.model_version,
                 details={"anomalies": frequency.anomalies},
+                limitations=list(limitations),
             ))
             outcome.frequency_data = frequency.frequency_points
             if frequency.spectrum_uri:
@@ -161,8 +204,8 @@ class AnalysisPipeline:
         outcome.evidence.extend(self._metadata_evidence(metadata))
 
     # ------------------------------------------------------------- video
-    async def _run_video(self, media_path: str, analysis_id: str, outcome: PipelineOutcome,
-                         work_dir: Path) -> None:
+    async def _run_video(self, media_path: str, quality: MediaQuality | None, analysis_id: str,
+                         outcome: PipelineOutcome, work_dir: Path) -> None:
         await self._report("VALIDATION", 3, "Validating video file")
         frames_dir = work_dir / "frames"
         frames_dir.mkdir(parents=True, exist_ok=True)
@@ -269,7 +312,7 @@ class AnalysisPipeline:
             outcome.suspicious_segments.extend(av_sync.suspicious_segments)
 
         if settings.enable_rppg:
-            await self._report("RPPG", 90, "Analyzing physiological signals")
+            await self._report("RPPG", 88, "Analyzing physiological signals")
             rppg: RPPGResult = await get_rppg_detector().analyze(media_path)
             outcome.signals.append(SignalResult(
                 signal_type=SignalType.physiological.value,
@@ -281,7 +324,51 @@ class AnalysisPipeline:
                 details={"heart_rate": rppg.heart_rate, "signal_quality": rppg.signal_quality},
             ))
 
-        await self._report("EVIDENCE_FUSION", 94, "Fusing independent signals")
+        await self._report("LIGHTING_ANALYSIS", 90, "Analyzing lighting consistency")
+        lighting = await LightingConsistencyAnalyzer().analyze(
+            DetectorContext.for_media(MediaType.video.value, media_path),
+            frames=frames,
+        )
+        outcome.signals.extend(lighting)
+        for signal in lighting:
+            for ev in signal.evidence:
+                outcome.evidence.append({
+                    "signal_type": SignalType.lighting.value,
+                    "kind": ev.get("kind", "lighting-segment"),
+                    "label": ev.get("label", ""),
+                    "score": signal.score,
+                    "confidence": signal.confidence,
+                    "severity": signal.severity,
+                    "explanation": ev.get("detail", ""),
+                    "timestamp_start": ev.get("timestamp_start"),
+                    "timestamp_end": ev.get("timestamp_end"),
+                    "frame_number": None,
+                    "metadata": {},
+                })
+
+        await self._report("FACE_TRACKING", 92, "Tracking face identity consistency")
+        face_motion = await FaceTrackingAnalyzer().analyze(
+            DetectorContext.for_media(MediaType.video.value, media_path),
+            frames=frames,
+        )
+        outcome.signals.extend(face_motion)
+        for signal in face_motion:
+            for ev in signal.evidence:
+                outcome.evidence.append({
+                    "signal_type": SignalType.face_tracking.value,
+                    "kind": ev.get("kind", "track"),
+                    "label": ev.get("label", ""),
+                    "score": signal.score,
+                    "confidence": signal.confidence,
+                    "severity": signal.severity,
+                    "explanation": ev.get("detail", ""),
+                    "timestamp_start": ev.get("timestamp_start"),
+                    "timestamp_end": ev.get("timestamp_end"),
+                    "frame_number": None,
+                    "metadata": {},
+                })
+
+        await self._report("EVIDENCE_FUSION", 95, "Fusing independent signals")
 
     async def _run_video_audio(self, media_path: str, analysis_id: str, outcome: PipelineOutcome,
                                work_dir: Path) -> AudioResult | None:
@@ -333,11 +420,12 @@ class AnalysisPipeline:
                     "explanation": "Spectral anomaly detected in audio segment.",
                     "timestamp_start": seg.get("start"), "timestamp_end": seg.get("end"),
                 })
+        await self._run_speech_synthetic(outcome, str(audio_path))
         return result
 
     # ------------------------------------------------------------- audio
-    async def _run_audio(self, media_path: str, analysis_id: str, outcome: PipelineOutcome,
-                         work_dir: Path) -> None:
+    async def _run_audio(self, media_path: str, quality: MediaQuality | None, analysis_id: str,
+                         outcome: PipelineOutcome, work_dir: Path) -> None:
         await self._report("VALIDATION", 5, "Validating audio file")
         await self._report("AUDIO_ANALYSIS", 30, "Analyzing spectral characteristics")
         detector = get_audio_detector()
@@ -372,6 +460,9 @@ class AnalysisPipeline:
                 key = await self._store_artifact(analysis_id, "spectrograms", result.spectrogram_uri)
                 outcome.artifacts["spectrogram"] = self.storage.url(key)
 
+        await self._report("SPEECH_SYNTHETIC", 45, "Analyzing synthetic-speech abstractions")
+        await self._run_speech_synthetic(outcome, media_path)
+
         await self._report("METADATA_ANALYSIS", 55, "Inspecting metadata and provenance")
         metadata = await get_metadata_detector().analyze(media_path, MediaType.audio.value)
         self._record_metadata(outcome, metadata, MediaType.audio.value)
@@ -381,6 +472,32 @@ class AnalysisPipeline:
         await self._report("EVIDENCE_FUSION", 90, "Fusing independent signals")
 
     # ------------------------------------------------------------- helpers
+    async def _run_speech_synthetic(self, outcome: PipelineOutcome, audio_path: str) -> None:
+        from ..forensic.audio.synthetic_speech import SyntheticSpeechAbstractionAnalyzer
+
+        try:
+            signals = await SyntheticSpeechAbstractionAnalyzer().analyze(
+                DetectorContext.for_media(MediaType.audio.value, audio_path)
+            )
+        except Exception:
+            return
+        for signal in signals:
+            outcome.signals.append(signal)
+            for ev in signal.evidence:
+                outcome.evidence.append({
+                    "signal_type": SignalType.speech_synthetic.value,
+                    "kind": ev.get("kind", "spectral"),
+                    "label": ev.get("label", ""),
+                    "score": signal.score,
+                    "confidence": signal.confidence,
+                    "severity": signal.severity,
+                    "explanation": ev.get("detail", ""),
+                    "timestamp_start": ev.get("timestamp_start"),
+                    "timestamp_end": ev.get("timestamp_end"),
+                    "frame_number": None,
+                    "metadata": {},
+                })
+
     def _record_metadata(self, outcome: PipelineOutcome, metadata: MetadataResult,
                          media_type: str) -> None:
         outcome.metadata_record = {
@@ -417,20 +534,38 @@ class AnalysisPipeline:
 
     async def _fuse_and_calibrate(self, outcome: PipelineOutcome, media_type: str) -> None:
         await self._report("EVIDENCE_FUSION", 95, "Fusing independent signals")
-        scores = {s.signal_type: s.score for s in outcome.signals}
+        signals = outcome.signals
+        consensus = build_consensus(signals, media_type)
+        outcome.agreement_score = consensus.agreement_score
+        outcome.cross_modal = consensus.to_dict()
+        outcome.cross_modal["context_notes"] = context_notes(signals)
+
+        scores = {s.signal_type: s.score for s in signals}
         classifier = get_meta_classifier()
-        fused = classifier.predict(scores, media_type)
+        fused, uncertainty = classifier.predict_with_agreement(
+            scores,
+            media_type,
+            agreement=consensus.agreement_score,
+            n_signals=consensus.considered_signals,
+        )
         outcome.fused_probability = fused
+        outcome.uncertainty = uncertainty
 
         await self._report("CALIBRATION", 98, "Calibrating confidence")
         calibrator = get_calibrator()
-        calibrated = calibrator.calibrate_with_interval(fused)
-        outcome.calibrated = calibrated.to_dict()
+        calibrated = calibrator.calibrate_with_interval(
+            fused, uncertainty=uncertainty, n_signals=consensus.considered_signals
+        )
+        calib: dict[str, Any] = calibrated.to_dict()
 
-        result = assess(calibrated.calibrated_probability)
+        result = assess(calibrated.calibrated_probability, uncertainty=uncertainty)
         outcome.verdict = result.verdict.value
         outcome.explanation = result.description
-        outcome.calibrated["verdict"] = result.verdict.value
+        calib["verdict"] = result.verdict.value
+        calib["uncertainty"] = round(uncertainty, 3)
+        if result.thresholds_used:
+            calib["thresholds_used"] = result.thresholds_used
+        outcome.calibrated = calib
 
     async def _store_artifact(self, analysis_id: str, folder: str, local_path: str) -> str:
         from io import BytesIO

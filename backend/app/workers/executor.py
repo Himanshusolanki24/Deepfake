@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_settings
 from ..core.logging import analysis_id_var, get_logger
+from ..core.metrics import record_analysis
 from ..db.enums import AnalysisStatus
 from ..db.models import Analysis, AnalysisJob
 from ..forensic.pipeline import AnalysisPipeline
@@ -69,6 +70,7 @@ async def run_analysis_job(analysis_id: str) -> dict[str, Any]:
                 }},
             )
             await _mark_job_done(session, job.id)
+            record_analysis(True, time.perf_counter() - start)
             return {"analysis_id": analysis_id, "status": "completed",
                     "verdict": outcome.verdict}
         except Exception as exc:
@@ -76,6 +78,7 @@ async def run_analysis_job(analysis_id: str) -> dict[str, Any]:
             await service.fail(analysis_id, "PIPELINE_ERROR", str(exc)[:500])
             await publish_error(analysis_id, f"Analysis failed: {exc}")
             await _mark_job_failed(session, job.id, str(exc)[:500])
+            record_analysis(False, time.perf_counter() - start)
             return {"analysis_id": analysis_id, "status": "failed"}
 
 

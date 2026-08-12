@@ -15,30 +15,37 @@ from ..forensic.signals import (
 
 
 class SpatialDetector(Protocol):
+    model_version: str
     async def analyze(self, image_path: str) -> SpatialResult: ...
 
 
 class FrequencyDetector(Protocol):
+    model_version: str
     async def analyze(self, image_path: str) -> FrequencyResult: ...
 
 
 class MetadataDetector(Protocol):
+    model_version: str
     async def analyze(self, media_path: str, media_type: str) -> MetadataResult: ...
 
 
 class TemporalDetector(Protocol):
+    model_version: str
     async def analyze(self, frames_dir: str, fps: float = 2.0) -> TemporalResult: ...
 
 
 class AudioDetector(Protocol):
+    model_version: str
     async def analyze(self, audio_path: str) -> AudioResult: ...
 
 
 class RPPGDetector(Protocol):
+    model_version: str
     async def analyze(self, video_path: str) -> RPPGResult: ...
 
 
 class AVSyncDetector(Protocol):
+    model_version: str
     async def analyze(self, video_path: str, frames_dir: str) -> AVSyncResult: ...
 
 

@@ -57,3 +57,7 @@ def _p95(values: list[float]) -> float:
 
 
 metrics = Metrics()
+
+
+def record_analysis(success: bool, duration_s: float) -> None:
+    metrics.record_analysis(success, duration_s)

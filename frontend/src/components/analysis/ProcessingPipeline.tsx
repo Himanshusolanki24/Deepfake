@@ -30,13 +30,15 @@ export function ProcessingPipeline({
   filename,
   active = true,
   onComplete,
+  analysisId,
 }: {
   caseId: string;
   filename: string;
   active?: boolean;
   onComplete?: () => void;
+  analysisId?: string;
 }) {
-  const { events, progress, eta, done } = useAnalysisProgress(active, 8200);
+  const { events, progress, eta, done } = useAnalysisProgress(active, 8200, analysisId);
   const log = useLiveLog(LIVE_LOG_LINES, active, 540);
   const onCompleteRef = useRef(onComplete);
   const currentOp = events.find((e) => e.status === "active");

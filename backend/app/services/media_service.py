@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import functools
+import shutil
 import struct
+import subprocess
+import tempfile
 from io import BytesIO
 from pathlib import Path
 
@@ -108,13 +112,18 @@ class MediaService:
 
 
 def _placeholder_png() -> bytes:
-    """Minimal valid PNG (1x1 gray) generated without PIL."""
-    width = height = 1
-    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
-    row = b"\x00\x7f\x7f\x7f"
-    raw = b"".join(b"\x00" + row)  # one filter byte per row
+    """Small valid PNG (128x128 vertical gray gradient) generated without PIL."""
     import binascii
     import zlib
+
+    width = height = 128
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    rows = bytearray()
+    for y in range(height):
+        rows.append(0)  # per-scanline filter byte (None)
+        v = (y * 255) // (height - 1)
+        rows += bytes((v, v, v)) * width
+    raw = bytes(rows)
 
     def chunk(tag: bytes, data: bytes) -> bytes:
         c = tag + data
@@ -144,6 +153,25 @@ def _placeholder_wav() -> bytes:
     return header + bytes(samples)
 
 
+@functools.lru_cache(maxsize=1)
 def _placeholder_mp4() -> bytes:
-    """A tiny valid MP4 (baseline) so ffprobe-based pipelines run in demo mode."""
-    return b"\x00\x00\x00\x18ftypisom" + b"\x00\x00\x02\x00" + b"isomiso2mp41" + b"\x00\x00\x00\x00"
+    """A tiny real MP4 (h264, 1s @ 5fps, 320x180) so ffmpeg/opencv pipelines run in demo mode."""
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise RuntimeError("ffmpeg is required to generate placeholder video media.")
+    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
+        tmp_path = tmp.name
+    try:
+        subprocess.run(
+            [
+                ffmpeg, "-hide_banner", "-loglevel", "error", "-y",
+                "-f", "lavfi", "-i", "color=c=0x808080:s=320x180:d=1:r=5",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                "-movflags", "+faststart", tmp_path,
+            ],
+            check=True,
+            capture_output=True,
+        )
+        return Path(tmp_path).read_bytes()
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)

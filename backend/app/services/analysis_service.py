@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, cast
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -66,6 +66,11 @@ SIGNAL_NAMES = {
     "av-sync": "Audio-visual synchronization",
     "metadata": "Metadata & provenance",
     "voice-spectral": "Voice spectral analysis",
+    "compression": "Compression artifacts",
+    "ai-generated": "AI-generation abstraction",
+    "lighting": "Lighting consistency",
+    "face-tracking": "Face identity tracking",
+    "speech-synthetic": "Synthetic speech abstraction",
 }
 
 
@@ -185,7 +190,10 @@ class AnalysisService:
                 status=signal.status,
                 explanation=signal.explanation,
                 model_version=signal.model_version,
-                details=json.dumps(signal.details) if signal.details else None,
+                detector_name=signal.detector_name or signal.signal_type,
+                details=_details_with_evidence(signal),
+                limitations=json.dumps(signal.limitations) if signal.limitations else None,
+                supporting_details=json.dumps(signal.supporting_details) if signal.supporting_details else None,
             ))
         for ev in outcome.evidence:
             self.session.add(Evidence(
@@ -230,10 +238,19 @@ class AnalysisService:
         analysis.ci_lower = cal.get("ci_lower")
         analysis.ci_upper = cal.get("ci_upper")
         analysis.confidence = cal.get("calibrated_probability")
-        analysis.verdict = outcome.verdict or Verdict.inconclusive.value
+        analysis.verdict = Verdict(outcome.verdict or Verdict.inconclusive.value)
         analysis.explanation = outcome.explanation
         analysis.total_duration_ms = outcome.duration_ms
         analysis.model_set = ",".join(f"{k}:{v}" for k, v in outcome.models.items())
+        analysis.media_quality_json = (
+            json.dumps(outcome.media_quality) if outcome.media_quality else None
+        )
+        analysis.cross_modal_json = (
+            json.dumps(outcome.cross_modal) if outcome.cross_modal else None
+        )
+        analysis.uncertainty = outcome.uncertainty
+        analysis.agreement_score = outcome.agreement_score
+        analysis.engine_version = outcome.engine_version
         analysis.completed_at = datetime.now(UTC)
         analysis.status = AnalysisStatus.completed
         await self.session.commit()
@@ -262,6 +279,9 @@ class AnalysisService:
     # ------------------------------------------------------------ serialization
     async def to_response(self, analysis: Analysis) -> AnalysisResponse:
         media = analysis.media
+        media_quality = (
+            json.loads(analysis.media_quality_json) if analysis.media_quality_json else None
+        )
         metadata_out = None
         if analysis.metadata_record:
             raw = json.loads(analysis.metadata_record.raw or "{}")
@@ -332,7 +352,7 @@ class AnalysisService:
         media_info = None
         if media:
             media_info = MediaInfo(
-                type=analysis.media_type,
+                type=cast(Literal["image", "video", "audio"], analysis.media_type.value),
                 filename=media.original_filename,
                 original_filename=media.original_filename,
                 mime_type=media.mime_type,
@@ -342,7 +362,12 @@ class AnalysisService:
                 width=media.width,
                 height=media.height,
                 codec=media.codec,
+                media_quality=media_quality,
             )
+
+        cross_modal = (
+            json.loads(analysis.cross_modal_json) if analysis.cross_modal_json else None
+        )
 
         assessment = Assessment(
             verdict=analysis.verdict or "inconclusive",
@@ -353,6 +378,12 @@ class AnalysisService:
                 if analysis.ci_lower is not None and analysis.ci_upper is not None else None
             ),
             explanation=analysis.explanation or "",
+            uncertainty=analysis.uncertainty,
+            agreement=analysis.agreement_score,
+            thresholds_used=(
+                (cross_modal or {}).get("thresholds_used")
+                if isinstance(cross_modal, dict) else None
+            ),
         )
 
         model_dict = {}
@@ -405,26 +436,62 @@ class AnalysisService:
                 duration_ms=analysis.total_duration_ms,
                 completed_at=to_iso(analysis.completed_at),
             ).model_dump() if analysis.completed_at else None,
-            limitations=[
-                "Low-quality input may reduce detector reliability.",
-                "Novel generation methods may evade existing detectors.",
-                "Metadata absence is not proof of manipulation.",
-                "Physiological analysis requires sufficient facial visibility.",
-                "Verdicts reflect calibrated confidence, not absolute truth.",
-            ],
+            limitations=self._limitations(analysis, cross_modal),
+            cross_modal=cross_modal,
+            media_quality=media_quality,
+            engine_version=analysis.engine_version,
+            signal_agreement=analysis.agreement_score,
+            uncertainty=analysis.uncertainty,
         )
+
+    def _limitations(self, analysis: Analysis, cross_modal: dict | None) -> list[str]:
+        limits: list[str] = [
+            "Novel generation methods may evade existing detectors.",
+            "Metadata absence is not proof of manipulation.",
+            "Verdicts reflect calibrated confidence, not absolute truth.",
+        ]
+        if cross_modal:
+            for note in (cross_modal.get("context_notes") or []):
+                if note not in limits:
+                    limits.insert(0, note)
+            for _inc in cross_modal.get("inconsistencies", []):
+                signal_a = _inc.get("signal_a", "signal")
+                signal_b = _inc.get("signal_b", "signal")
+                limits.append(
+                    f"Signal disagreement: {signal_a} vs {signal_b} point in opposite directions."
+                )
+        src = getattr(analysis, "signals", [])
+        seen: set[str] = set()
+        for s in src:
+            if s.status == "insufficient_evidence":
+                msg = f"{s.signal_type}: insufficient evidence to reach a conclusion."
+                if msg not in seen:
+                    seen.add(msg)
+                    limits.append(msg)
+            try:
+                signal_limits = json.loads(s.limitations or "[]")
+            except (json.JSONDecodeError, TypeError):
+                signal_limits = []
+            for lim in signal_limits:
+                if lim and lim not in limits:
+                    limits.append(lim)
+        return limits[:10]
 
     def _signal_out(self, s: SignalResult) -> SignalResultOut:
         details = json.loads(s.details) if s.details else {}
         evidence: list[SignalEvidence] = []
         technical = self._technical_for(s.signal_type, details)
-        for ev in getattr(s, "evidence", []):
+        structural = list(details.get("evidence", []) or [])
+        for ev in structural:
             if isinstance(ev, dict):
+                raw_ts = ev.get("timestamp") if ev.get("timestamp") is not None else ev.get("timestamp_start")
                 evidence.append(SignalEvidence(
                     id=str(ev.get("id", "")), kind=ev.get("kind", "frame"),
-                    label=ev.get("label", ""), timestamp=ev.get("timestamp"),
-                    value=ev.get("value"),
+                    label=ev.get("label", ""), timestamp=str(raw_ts) if raw_ts is not None else None,
+                    value=ev.get("value") if isinstance(ev.get("value"), (int, float)) else None,
                 ))
+        limitations = json.loads(s.limitations) if s.limitations else []
+        supporting = json.loads(s.supporting_details) if s.supporting_details else []
         return SignalResultOut(
             id=s.signal_type,
             name=SIGNAL_NAMES.get(s.signal_type, s.signal_type),
@@ -434,6 +501,9 @@ class AnalysisService:
             explanation=s.explanation,
             technical=technical,
             evidence=evidence,
+            limitations=limitations,
+            supportingDetails=supporting,
+            detectorName=s.detector_name,
         )
 
     def _technical_for(self, signal_type: str, details: dict) -> list[str]:
@@ -455,6 +525,31 @@ class AnalysisService:
                 f"prosody: {details.get('prosody_score')}",
                 f"pitch: {details.get('pitch_score')}",
             ]
+        if signal_type == "compression":
+            return [
+                f"blockiness: {details.get('blockiness')}",
+                f"double_compression: {details.get('double_compression')}",
+            ]
+        if signal_type == "ai-generated":
+            return [
+                f"palette: {details.get('palette_narrowing')}",
+                f"noise_uniformity: {details.get('noise_uniformity')}",
+            ]
+        if signal_type == "lighting":
+            return [
+                f"jumps: {details.get('jump_count')}",
+                f"volatility: {details.get('trajectory_volatility')}",
+            ]
+        if signal_type == "face-tracking":
+            return [
+                f"track_breaks: {details.get('track_breaks')}",
+                f"mean_iou: {details.get('mean_iou')}",
+            ]
+        if signal_type == "speech-synthetic":
+            return [
+                f"spectral_flatness: {details.get('spectral_flatness')}",
+                f"pitch_regularity: {details.get('pitch_regularity')}",
+            ]
         return []
 
     def _build_timeline(self, analysis: Analysis) -> list[TimelineEventOut]:
@@ -474,6 +569,15 @@ class AnalysisService:
                 severity="medium", detail=f"Verdict: {analysis.verdict}",
             ))
         return timeline
+
+
+def _details_with_evidence(signal: object) -> str | None:
+    """Merge per-signal evidence into the details JSON for persistence."""
+    details = dict(getattr(signal, "details", None) or {})
+    evidence = getattr(signal, "evidence", None)
+    if evidence:
+        details["evidence"] = [dict(ev) if isinstance(ev, dict) else ev for ev in evidence]
+    return json.dumps(details) if details else None
 
 
 def _frequency_data_from_signals(signals: list[SignalResult]) -> list[dict]:

@@ -101,7 +101,8 @@ def enqueue_task(analysis_id: str, media_type: str) -> dict[str, Any]:
         except RuntimeError:
             # Called from a sync context (unlikely): fall back to Celery.
             return _dispatch_celery(analysis_id, media_type)
-        loop.create_task(enqueue_in_process(analysis_id, media_type))
+        _task = loop.create_task(enqueue_in_process(analysis_id, media_type))
+        _running_tasks.add(_task)
         return {"mode": "in_process"}
 
     return _dispatch_celery(analysis_id, media_type)

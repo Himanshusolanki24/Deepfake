@@ -42,6 +42,11 @@ class SignalType(str, Enum):
     av_sync = "av-sync"
     metadata = "metadata"
     voice_spectral = "voice-spectral"
+    compression = "compression"
+    ai_generated = "ai-generated"
+    lighting = "lighting"
+    face_tracking = "face-tracking"
+    speech_synthetic = "speech-synthetic"
 
 
 class EvidenceKind(str, Enum):
@@ -51,6 +56,11 @@ class EvidenceKind(str, Enum):
     spectrogram = "spectrogram"
     metadata_finding = "metadata-finding"
     audio_anomaly = "audio-anomaly"
+    block_region = "block-region"
+    region = "region"
+    track = "track"
+    lighting_segment = "lighting-segment"
+    spectral = "spectral"
 
 
 class JobStatus(str, Enum):

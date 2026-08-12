@@ -58,7 +58,6 @@ class LandmarkTracker:
         model_path = settings.face_detector_model_path
         if model is not None and model_path and Path(model_path).exists():
             try:
-                h, w = frame.shape[:2]
                 detector = model.create(model_path, "", (320, 320), 0.6, 0.3, 5000)
                 _, faces = detector.detect(cv2.resize(frame, (320, 320)))
                 if faces is not None:

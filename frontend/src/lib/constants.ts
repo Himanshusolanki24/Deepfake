@@ -42,11 +42,16 @@ export const SIGNAL_CATEGORIES: Record<SignalCategory, { label: string; descript
 export const SIGNAL_TO_CATEGORY: Record<string, SignalCategory> = {
   spatial: "visual",
   frequency: "visual",
+  compression: "visual",
+  "ai-generated": "visual",
+  lighting: "visual",
   temporal: "temporal",
   physiological: "temporal",
+  "face-tracking": "temporal",
   "av-sync": "crossmodal",
   metadata: "provenance",
   "voice-spectral": "audio",
+  "speech-synthetic": "audio",
 };
 
 export const ANALYSIS_STEP_DURATION_MS = 850;

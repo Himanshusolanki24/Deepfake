@@ -15,10 +15,37 @@ import { toast } from "sonner";
 import { formatBytes, formatSeconds, timeAgo } from "@/lib/utils";
 import { VERDICT_HEADLINES, VERDICT_LABELS } from "@/types/analysis";
 import { MEDIA_TYPE_LABELS } from "@/types/media";
+import { API_CONFIG } from "@/lib/api";
 
 export function ReportView({ id }: { id: string }) {
   const router = useRouter();
   const { data: result, isLoading, isError, refetch } = useAnalysis(id);
+
+  const handleDownloadPdf = async () => {
+    if (API_CONFIG.useMocks) {
+      toast.success("PDF report queued for download");
+      return;
+    }
+    try {
+      const res = await fetch(`${API_CONFIG.apiUrl}/api/v1/analysis/${id}/report/pdf`);
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.error?.message ?? "PDF generation failed.");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `authentiq-report-${id}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("PDF report downloaded");
+    } catch {
+      toast.error("PDF report could not be generated", {
+        description: "The report service is unavailable.",
+      });
+    }
+  };
 
   if (isLoading) return <ReportSkeleton />;
   if (isError || !result) {
@@ -46,9 +73,7 @@ export function ReportView({ id }: { id: string }) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {
-              toast.success("PDF report queued for download");
-            }}
+            onClick={() => void handleDownloadPdf()}
           >
             <Download className="h-3.5 w-3.5" />
             Download PDF Report

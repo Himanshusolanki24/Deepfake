@@ -6,7 +6,12 @@ from typing import Any
 
 @dataclass
 class SignalResult:
-    """Canonical output of any forensic detector."""
+    """Canonical output of any forensic detector.
+
+    A single detector emits one ``SignalResult`` per evidence family. The
+    contract is deliberately minimal so every detector shares one shape
+    regardless of provenance (CNN, signal processing or rule-based).
+    """
 
     signal_type: str
     score: float | None
@@ -15,9 +20,18 @@ class SignalResult:
     status: str = "available"
     explanation: str = ""
     model_version: str = ""
+    detector_name: str = ""
     details: dict[str, Any] = field(default_factory=dict)
     evidence: list[dict[str, Any]] = field(default_factory=list)
     artifacts: dict[str, str | None] = field(default_factory=dict)
+    limitations: list[str] = field(default_factory=list)
+    supporting_details: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if self.score is not None:
+            self.score = float(min(1.0, max(0.0, self.score)))
+        if self.confidence is not None:
+            self.confidence = float(min(1.0, max(0.0, self.confidence)))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -28,10 +42,39 @@ class SignalResult:
             "status": self.status,
             "explanation": self.explanation,
             "model_version": self.model_version,
+            "detector_name": self.detector_name,
             "details": self.details,
             "evidence": self.evidence,
             "artifacts": self.artifacts,
+            "limitations": self.limitations,
+            "supporting_details": self.supporting_details,
         }
+
+    @property
+    def is_available(self) -> bool:
+        return self.status == "available" and self.score is not None
+
+
+def merge_signal(signal: SignalResult, **updates: Any) -> SignalResult:
+    """Return a copy of *signal* with mutable fields merged."""
+    merged = SignalResult(
+        signal_type=updates.get("signal_type", signal.signal_type),
+        score=updates.get("score", signal.score),
+        confidence=updates.get("confidence", signal.confidence),
+        severity=updates.get("severity", signal.severity),
+        status=updates.get("status", signal.status),
+        explanation=updates.get("explanation", signal.explanation),
+        model_version=updates.get("model_version", signal.model_version),
+        detector_name=updates.get("detector_name", signal.detector_name),
+        details={**signal.details, **updates.get("details", {})},
+        evidence=list(signal.evidence),
+        artifacts=dict(signal.artifacts),
+        limitations=list(signal.limitations),
+        supporting_details=list(signal.supporting_details),
+    )
+    if not updates.get("signal_type"):
+        merged.signal_type = signal.signal_type
+    return merged
 
 
 @dataclass

@@ -10,7 +10,6 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -21,9 +20,6 @@ from ..enums import AnalysisStatus, MediaType, Verdict
 
 class Analysis(TimestampMixin, UUIDPrimaryKeyMixin, Base):
     __tablename__ = "analyses"
-    __table_args__ = (
-        UniqueConstraint("owner_id", "media_sha256", "model_set", name="uq_analysis_owner_media_models"),
-    )
 
     user_id: Mapped[str | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), index=True, nullable=True
@@ -54,6 +50,12 @@ class Analysis(TimestampMixin, UUIDPrimaryKeyMixin, Base):
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     idempotency_key: Mapped[str | None] = mapped_column(String(128), index=True, nullable=True)
+
+    media_quality_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    cross_modal_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    uncertainty: Mapped[float | None] = mapped_column(Float, nullable=True)
+    agreement_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    engine_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     user = relationship("User", back_populates="analyses")
     media = relationship("MediaFile", back_populates="analysis", uselist=False, lazy="selectin",
@@ -108,7 +110,10 @@ class SignalResult(TimestampMixin, UUIDPrimaryKeyMixin, Base):
     status: Mapped[str] = mapped_column(String(32), default="available", nullable=False)
     explanation: Mapped[str] = mapped_column(Text, nullable=False)
     model_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    detector_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
     details: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON blob
+    limitations: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON list
+    supporting_details: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON list
 
     analysis = relationship("Analysis", back_populates="signals")
 
