@@ -30,18 +30,39 @@ interface RequestOptions {
   method?: string;
   body?: unknown;
   timeoutMs?: number;
+  authenticated?: boolean;
+}
+
+/**
+ * Resolves the current Supabase session access token so downstream API calls
+ * carry it as `Authorization: Bearer <jwt>`. The backend derives the user
+ * identity from this token — never from a client-sent user_id.
+ */
+async function getAccessToken(): Promise<string | null> {
+  try {
+    const { getSupabaseBrowserClient } = await import("@/lib/supabase/client");
+    const { data } = await getSupabaseBrowserClient().auth.getSession();
+    return data.session?.access_token ?? null;
+  } catch {
+    return null;
+  }
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 30000);
   try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    };
+    if (options.authenticated !== false) {
+      const token = await getAccessToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+    }
     const res = await fetch(`${API_URL}${path}`, {
       method: options.method ?? "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
+      headers,
       body: options.body ? JSON.stringify(options.body) : undefined,
       signal: controller.signal,
     });

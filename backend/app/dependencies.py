@@ -17,6 +17,7 @@ from .core.exceptions import (
     RateLimitExceededError,
 )
 from .core.security import decode_token, hash_api_key
+from .core.supabase_auth import decode_supabase_token, is_supabase_token
 from .db.database import get_db_session
 from .db.enums import Role
 from .db.models import ApiKey, User
@@ -41,6 +42,25 @@ def _principal_from_user(user: User, auth_method: str = "jwt") -> Principal:
     return Principal(subject=str(user.id), role=user.role, auth_method=auth_method, anonymous=False)
 
 
+def _principal_from_supabase(sub: str, claims: dict[str, Any]) -> Principal:
+    """Derive a principal from a validated Supabase JWT.
+
+    The authenticated user identity always comes from the token (``sub``) —
+    never from a client-sent ``user_id``.
+    """
+    role = Role.user
+    app_role = (claims.get("app_metadata") or {}).get("role")
+    if app_role in {r.value for r in Role}:
+        role = Role(app_role)
+    return Principal(
+        subject=sub,
+        role=role,
+        auth_method="supabase",
+        anonymous=False,
+        claims=claims,
+    )
+
+
 async def get_current_user(
     authorization: str | None = Header(default=None),
     x_api_key: str | None = Header(default=None, alias="X-API-Key"),
@@ -53,14 +73,29 @@ async def get_current_user(
         raise AuthenticationError(message="Invalid API key.")
     if authorization and authorization.lower().startswith("bearer "):
         token = authorization.split(" ", 1)[1]
+        # Prefer Supabase identity when configured.
+        if not settings.use_supabase_auth or not is_supabase_token(token):
+            try:
+                claims = decode_token(token)
+            except Exception as exc:
+                raise AuthenticationError(message="Invalid or expired token.") from exc
+            user = await session.get(User, claims.get("sub"))
+            if user is None or not user.is_active:
+                raise AuthenticationError(message="User not found or inactive.")
+            return _principal_from_user(user)
         try:
-            claims = decode_token(token)
-        except Exception as exc:
-            raise AuthenticationError(message="Invalid or expired token.") from exc
-        user = await session.get(User, claims.get("sub"))
-        if user is None or not user.is_active:
-            raise AuthenticationError(message="User not found or inactive.")
-        return _principal_from_user(user)
+            claims = decode_supabase_token(token)
+        except AuthenticationError:
+            # Fall back to the legacy local JWT scheme for backwards compat.
+            try:
+                local_claims = decode_token(token)
+            except Exception as exc:
+                raise AuthenticationError(message="Invalid or expired token.") from exc
+            user = await session.get(User, local_claims.get("sub"))
+            if user is None or not user.is_active:
+                raise AuthenticationError(message="User not found or inactive.")
+            return _principal_from_user(user)
+        return _principal_from_supabase(claims["sub"], claims)
     raise AuthenticationError(message="Authentication required.")
 
 

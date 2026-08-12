@@ -87,6 +87,13 @@ class Settings(BaseSettings):
     api_key_ttl_days: int = 365
     idempotency_ttl_seconds: int = 3600
 
+    # --- Supabase auth (identity via Supabase JWT, never client-sent ids) ---
+    use_supabase_auth: bool = True
+    supabase_url: str | None = None  # e.g. http://127.0.0.1:54321
+    supabase_jwt_secret: str = ""
+    # The Supabase project "anon"/"authenticated" audience.
+    supabase_jwt_audience: str = "authenticated"
+
     # --- Rate limiting (per window, per client) ---
     rate_limit_anonymous: str = "10/hour"
     rate_limit_authenticated: str = "100/hour"

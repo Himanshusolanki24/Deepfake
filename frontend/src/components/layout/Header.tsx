@@ -33,10 +33,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useUiStore, mockNotifications } from "@/store/uiStore";
-import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import { cn, initials } from "@/lib/utils";
 
 const ROUTE_LABELS: Record<string, string> = {
   analyze: "New Analysis",
@@ -66,12 +67,23 @@ function breadcrumbFromPath(pathname: string): { label: string; mono?: boolean }
 export function Header() {
   const pathname = usePathname();
   const router = useRouter();
+  const { user, signOut } = useAuth();
   const setMobileNavOpen = useUiStore((s) => s.setMobileNavOpen);
   const toggleSidebarCollapsed = useUiStore((s) => s.toggleSidebarCollapsed);
   const [searchOpen, setSearchOpen] = useState(false);
   const [unread] = useState(() => mockNotifications.filter((n) => !n.read).length);
 
   const crumbs = breadcrumbFromPath(pathname);
+
+  const displayName = user?.fullName ?? "Analyst";
+  const displayEmail = user?.email ?? "analyst@authentiq.dev";
+  const roleLabel = user?.role === "admin" ? "Administrator" : user?.role === "analyst" ? "Forensic Analyst" : "Analyst";
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push("/auth/login");
+    router.refresh();
+  };
 
   return (
     <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between gap-3 border-b border-border bg-card/95 px-4 backdrop-blur sm:px-6">
@@ -209,7 +221,13 @@ export function Header() {
               aria-label="User menu"
             >
               <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-sidebar text-[10px] text-white">HM</AvatarFallback>
+                {user?.avatarUrl ? (
+                  <AvatarImage src={user.avatarUrl} alt={displayName} />
+                ) : (
+                  <AvatarFallback className="bg-sidebar text-[10px] text-white">
+                    {initials(displayName)}
+                  </AvatarFallback>
+                )}
               </Avatar>
               <ChevronDown className="hidden h-3.5 w-3.5 text-muted-foreground sm:block" />
             </button>
@@ -217,8 +235,9 @@ export function Header() {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
               <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-semibold text-foreground">Himanshu Solanki</span>
-                <span className="hex-mono text-xs text-muted-foreground">Forensic Analyst · PRO</span>
+                <span className="text-sm font-semibold text-foreground">{displayName}</span>
+                <span className="hex-mono text-xs text-muted-foreground">{roleLabel}</span>
+                <span className="truncate text-[11px] text-muted-foreground">{displayEmail}</span>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -232,7 +251,7 @@ export function Header() {
               <ShieldCheck className="h-4 w-4" /> Security
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void handleSignOut()}>
               <LogOut className="h-4 w-4" /> Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>

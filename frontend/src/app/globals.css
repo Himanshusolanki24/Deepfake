@@ -241,3 +241,125 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Landing — light forensic / intelligence lab                         */
+/* ------------------------------------------------------------------ */
+
+@layer utilities {
+  /* Light technical grid — extremely subtle, never decorative */
+  .forensic-grid {
+    background-image:
+      linear-gradient(to right, rgb(17 24 39 / 0.045) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(17 24 39 / 0.045) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
+
+  .forensic-grid-fine {
+    background-image:
+      linear-gradient(to right, rgb(17 24 39 / 0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(17 24 39 / 0.04) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  .landing-mono {
+    font-family: var(--font-mono);
+  }
+}
+
+/* Hero scanner scanline */
+@keyframes scan-y {
+  0% {
+    translate: 0 -12%;
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    translate: 0 102%;
+    opacity: 0;
+  }
+}
+
+.animate-scan-y {
+  animation: scan-y 4.5s var(--ease-lux, cubic-bezier(0.4, 0, 0.2, 1)) infinite;
+}
+
+/* Label ticker */
+@keyframes ticker-x {
+  0% {
+    translate: 0 0;
+  }
+  100% {
+    translate: -50% 0;
+  }
+}
+
+.animate-ticker {
+  animation: ticker-x 26s linear infinite;
+}
+
+/* Anomaly pulse dots */
+@keyframes pulse-anomaly {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(220 38 38 / 0.35);
+    opacity: 1;
+  }
+  50% {
+    box-shadow: 0 0 0 7px rgb(220 38 38 / 0);
+    opacity: 0.55;
+  }
+}
+
+.animate-anomaly {
+  animation: pulse-anomaly 2.4s ease-out infinite;
+}
+
+/* Slow blink for status lights */
+@keyframes blink-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.animate-blink-soft {
+  animation: blink-soft 2.8s ease-in-out infinite;
+}
+
+/* Spectrum / reading sweep used in frequency + heatmap reveals */
+@keyframes sweep-x {
+  0% {
+    translate: -100% 0;
+  }
+  100% {
+    translate: 240% 0;
+  }
+}
+
+.animate-sweep-x {
+  animation: sweep-x 5.5s var(--ease-lux, linear) infinite;
+}
+
+/* Grid mask fade used behind hero + final CTA */
+.landing-grid-mask {
+  mask-image: radial-gradient(62% 60% at 50% 42%, black 30%, transparent 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-scan-y,
+  .animate-ticker,
+  .animate-anomaly,
+  .animate-blink-soft,
+  .animate-sweep-x {
+    animation: none !important;
+  }
+}

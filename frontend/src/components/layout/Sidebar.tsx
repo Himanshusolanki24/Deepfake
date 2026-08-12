@@ -19,15 +19,18 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/store/uiStore";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { initials } from "@/lib/utils";
 
 const NAV_SECTIONS = [
   {
     label: "Workspace",
     items: [
-      { href: "/", label: "Overview", icon: LayoutDashboard },
+      { href: "/workspace", label: "Overview", icon: LayoutDashboard },
       { href: "/analyze", label: "New Analysis", icon: FilePlus2 },
       { href: "/history", label: "Analysis History", icon: History },
       { href: "/batch", label: "Batch Analysis", icon: Layers },
@@ -54,11 +57,15 @@ export function SidebarContent({
   const pathname = usePathname();
   const setMobileNavOpen = useUiStore((s) => s.setMobileNavOpen);
   const toggleCollapsed = useUiStore((s) => s.toggleSidebarCollapsed);
+  const { user } = useAuth();
 
   const close = () => {
     setMobileNavOpen(false);
     onNavigate?.();
   };
+
+  const displayName = user?.fullName ?? "Analyst";
+  const displayEmail = user?.email ?? "analyst@authentiq.dev";
 
   return (
     <TooltipProvider delayDuration={200} skipDelayDuration={100}>
@@ -70,7 +77,7 @@ export function SidebarContent({
           )}
         >
           <Link
-            href="/"
+            href="/workspace"
             onClick={close}
             className={cn("group flex items-center gap-3", collapsed && "flex-col gap-2")}
             aria-label="AUTHENTIQ overview"
@@ -115,7 +122,7 @@ export function SidebarContent({
               <ul className={cn("space-y-0.5", collapsed && "space-y-1")}>
                 {section.items.map((item) => {
                   const active =
-                    item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+                    pathname === item.href || pathname.startsWith(`${item.href}/`);
                   const Icon = item.icon;
                   const link = (
                     <Link
@@ -167,6 +174,27 @@ export function SidebarContent({
         </nav>
 
         <div className="border-t border-sidebar-border px-4 py-4">
+          {!collapsed && (
+            <Link
+              href="/settings"
+              onClick={close}
+              className="mb-3 flex items-center gap-2.5 rounded-md bg-sidebar-accent px-2.5 py-2 transition-colors hover:bg-sidebar-active"
+            >
+              <Avatar className="h-8 w-8 border border-sidebar-border">
+                {user?.avatarUrl ? (
+                  <AvatarImage src={user.avatarUrl} alt={displayName} />
+                ) : (
+                  <AvatarFallback className="bg-[#1b2a42] text-[10px] text-white">
+                    {initials(displayName)}
+                  </AvatarFallback>
+                )}
+              </Avatar>
+              <div className="min-w-0 flex-1 leading-tight">
+                <p className="truncate text-[13px] font-medium text-white">{displayName}</p>
+                <p className="truncate text-[11px] text-sidebar-muted">{displayEmail}</p>
+              </div>
+            </Link>
+          )}
           {collapsed ? (
             <div className="flex flex-col items-center gap-3">
               <Tooltip>

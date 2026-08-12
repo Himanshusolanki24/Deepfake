@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { useUiStore } from "@/store/uiStore";
 
 const ITEMS = [
-  { href: "/", label: "Overview", icon: LayoutDashboard },
+  { href: "/workspace", label: "Overview", icon: LayoutDashboard },
   { href: "/analyze", label: "Analyze", icon: FilePlus2 },
   { href: "/history", label: "History", icon: History },
   { href: "/batch", label: "Batch", icon: Layers },
