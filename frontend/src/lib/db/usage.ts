@@ -5,7 +5,7 @@
  * Usage is tracked per user per billing period for rate limiting and subscription enforcement.
  */
 
-import { createClient } from "@/lib/supabase/server";
+import { createRequiredClient as createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
 
 type UsageRecordRow = Database["public"]["Tables"]["usage_records"]["Row"];
@@ -41,30 +41,31 @@ export interface UsageRecord {
 export async function getCurrentUsage(): Promise<UsageSummary | null> {
   const supabase = await createClient();
 
-  const { data, error } = await supabase.rpc("get_current_usage");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase.rpc as any)("get_current_usage");
 
   if (error) {
     // If no usage record exists yet, return default values
-    if (error.code === "PGRST116") {
+    if ((error as { code?: string }).code === "PGRST116") {
       return null;
     }
     throw error;
   }
 
-  if (!data || data.length === 0) {
+  if (!data || !Array.isArray(data) || data.length === 0) {
     return null;
   }
 
-  const row = data[0];
+  const row = data[0] as Record<string, unknown>;
   return {
-    userId: row.user_id,
-    periodStart: row.period_start,
-    periodEnd: row.period_end,
-    analysisCount: row.analysis_count,
-    storageBytes: row.storage_bytes,
-    tier: row.tier,
-    analysisLimit: row.analysis_limit,
-    storageLimitGb: row.storage_limit_gb,
+    userId: row.user_id as string,
+    periodStart: row.period_start as string,
+    periodEnd: row.period_end as string,
+    analysisCount: row.analysis_count as number,
+    storageBytes: row.storage_bytes as number,
+    tier: row.tier as string,
+    analysisLimit: row.analysis_limit as number,
+    storageLimitGb: row.storage_limit_gb as number,
   };
 }
 
@@ -112,7 +113,8 @@ export async function incrementAnalysisCount(): Promise<void> {
     throw new Error("User must be authenticated to increment usage");
   }
 
-  const { error } = await supabase.rpc("increment_analysis_count", {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase.rpc as any)("increment_analysis_count", {
     p_user_id: user.id,
   });
 
@@ -135,7 +137,8 @@ export async function addStorageUsage(bytes: number): Promise<void> {
     throw new Error("User must be authenticated to add storage usage");
   }
 
-  const { error } = await supabase.rpc("add_storage_usage", {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase.rpc as any)("add_storage_usage", {
     p_user_id: user.id,
     p_bytes: bytes,
   });

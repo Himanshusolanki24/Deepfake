@@ -33,3 +33,17 @@ export async function createClient(): Promise<SupabaseClient<Database> | null> {
     },
   });
 }
+
+/**
+ * Returns a non-null Supabase client. Use this in DB helpers / server actions
+ * that are only called at request time (never during static prerendering).
+ */
+export async function createRequiredClient(): Promise<SupabaseClient<Database>> {
+  const client = await createClient();
+  if (!client) {
+    throw new Error(
+      "Missing Supabase environment variables. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY."
+    );
+  }
+  return client;
+}
