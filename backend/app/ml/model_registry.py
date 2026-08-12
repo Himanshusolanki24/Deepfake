@@ -118,11 +118,10 @@ class ModelRegistry:
                 sess = ort.InferenceSession(spec.path, sess_options=opts, providers=["CPUExecutionProvider"])
                 self._loaded[name] = sess
                 return sess
-            if "torch" in framework:
-                import torch  # type: ignore
+            if "tf" in framework or "keras" in framework or "tensorflow" in framework:
+                import tensorflow as tf  # type: ignore
 
-                model = torch.load(spec.path, map_location=self._device)
-                model.eval()
+                model = tf.keras.models.load_model(spec.path)
                 self._loaded[name] = model
                 return model
         except Exception as exc:  # pragma: no cover
@@ -161,21 +160,21 @@ def _register_defaults(registry: ModelRegistry) -> None:
         ModelSpec(
             name="spatial-detector-v1",
             version="1.0.0",
-            framework="mock" if mock else "onnx",
-            path=str(models_dir / "spatial.onnx") if not mock else None,
+            framework="mock" if mock else "tensorflow",
+            path=str(models_dir / "spatial_model") if not mock else None,
             input_size=(224, 224),
             device=s.model_device,
             is_mock=mock,
             family="image-spatial",
             task="classification",
-            backbone="efficientnet-b0",
+            backbone="mobilenet-v2",
             release_date="2021-01-01",
             license="apache-2.0",
             supported_modalities=["image"],
-            memory_mb=280 if not mock else 0,
+            memory_mb=100 if not mock else 0,
             input_format="RGB 224x224 tensor",
             output_spec="classifier logits",
-            description="Spatial-texture manipulation classifier.",
+            description="TensorFlow 2.x Keras spatial-texture manipulation classifier (CPU-oriented).",
             benchmark_accuracy=None,
         )
     )

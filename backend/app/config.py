@@ -52,11 +52,24 @@ class Settings(BaseSettings):
     max_video_duration_seconds: int = 1800
     max_audio_duration_seconds: int = 1800
 
-    # --- ML ---
+    # --- ML & Microservices ---
     model_device: Literal["cpu", "cuda", "mps"] = "cpu"
     use_mock_models: bool = True
     model_cache_dir: str = "./models"
     face_detector_model_path: str | None = None
+
+    # Standalone ML Microservices & Hugging Face Spaces URLs
+    image_ml_url: str | None = None  # e.g., "http://localhost:8001" or Hugging Face Space URL
+    audio_ml_url: str | None = None  # e.g., "http://localhost:8002" or Hugging Face Space URL
+    video_ml_url: str | None = None  # e.g., "http://localhost:8003" or Hugging Face Space URL
+
+    # External API Offloading Keys
+    hf_api_token: str | None = None
+    replicate_api_token: str | None = None
+    sightengine_api_user: str | None = None
+    sightengine_api_secret: str | None = None
+    deepai_api_key: str | None = None
+
 
     # --- Pipeline tuning ---
     sample_fps: float = 2.0

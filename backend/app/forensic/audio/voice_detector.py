@@ -110,7 +110,7 @@ class VoiceDetector:
 
         mel = mel_spectrogram(samples, sr)
         norm = (mel - mel.min()) / max(mel.max() - mel.min(), 1e-6)
-        img = Image.fromarray((norm * 255).astype(np.uint8)).resize((512, 256), Image.LANCZOS)
+        img = Image.fromarray((norm * 255).astype(np.uint8)).resize((512, 256), Image.Resampling.LANCZOS)
         out_dir = Path(self.spectrogram_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         out = out_dir / f"spectrogram-{Path(audio_path).stem}.png"

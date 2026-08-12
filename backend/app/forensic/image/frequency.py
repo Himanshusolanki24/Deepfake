@@ -32,7 +32,7 @@ def _to_spectrum_png(magnitude_db: np.ndarray, out_path: str) -> str:
     m = magnitude_db
     m = (m - m.min()) / max(m.max() - m.min(), 1e-6)
     m = (m * 255).astype(np.uint8)
-    img = Image.fromarray(m).resize((512, 512), Image.LANCZOS)
+    img = Image.fromarray(m).resize((512, 512), Image.Resampling.LANCZOS)
     img.save(out_path)
     return out_path
 

@@ -238,14 +238,96 @@ class MockMetadataDetector:
         return await run_metadata_analysis(media_path, media_type)
 
 
+class MicroserviceSpatialDetector:
+    """Delegates spatial detection to remote image_ml microservice."""
+
+    model_version = "spatial-microservice-v1"
+
+    async def analyze(self, image_path: str) -> SpatialResult:
+        from .microservice_client import MLMicroserviceClient
+
+        client = MLMicroserviceClient()
+        res = await client.analyze_image(image_path)
+        if res and "signals" in res and "spatial" in res["signals"]:
+            sp = res["signals"]["spatial"]
+            return SpatialResult(
+                score=sp.get("score", 0.5),
+                confidence=sp.get("confidence", 0.85),
+                model_version=self.model_version,
+                regions=sp.get("regions", []),
+                explanation=sp.get("explanation", "Image microservice spatial analysis completed."),
+            )
+
+        from ..forensic.image.spatial import TFKerasSpatialDetector
+
+        return await TFKerasSpatialDetector().analyze(image_path)
+
+
+class MicroserviceAudioDetector:
+    """Delegates audio detection to remote audio_ml microservice."""
+
+    model_version = "audio-microservice-v1"
+
+    async def analyze(self, audio_path: str) -> AudioResult:
+        from .microservice_client import MLMicroserviceClient
+
+        client = MLMicroserviceClient()
+        res = await client.analyze_audio(audio_path)
+        if res and "signals" in res and "voice_spectral" in res["signals"]:
+            vs = res["signals"]["voice_spectral"]
+            return AudioResult(
+                score=vs.get("score", 0.5),
+                model_version=self.model_version,
+                spectral_score=vs.get("spectral_score", 0.5),
+                prosody_score=vs.get("prosody_score", 0.5),
+                pitch_score=0.5,
+                vocoder_artifacts=vs.get("vocoder_artifacts", 0.5),
+                breath_noise=0.2,
+                segments=[],
+                explanation=vs.get("explanation", "Audio microservice voice analysis completed."),
+            )
+
+        from ..forensic.audio.voice_detector import VoiceDetector
+
+        return await VoiceDetector().analyze(audio_path)
+
+
+class MicroserviceTemporalDetector:
+    """Delegates video temporal detection to remote video_ml microservice."""
+
+    model_version = "video-microservice-v1"
+
+    async def analyze(self, frames_dir: str, fps: float = 2.0) -> TemporalResult:
+        from .microservice_client import MLMicroserviceClient
+
+        client = MLMicroserviceClient()
+        res = await client.analyze_video(frames_dir)
+        if res and "signals" in res and "temporal" in res["signals"]:
+            tp = res["signals"]["temporal"]
+            return TemporalResult(
+                score=tp.get("score", 0.5),
+                model_version=self.model_version,
+                anomalous_segments=[],
+                suspicious_frames=res.get("suspicious_frames", []),
+                explanation="Video microservice temporal analysis completed.",
+            )
+
+        from ..forensic.video.temporal import TemporalAnalyzer
+
+        return await TemporalAnalyzer().analyze(frames_dir, fps)
+
+
 def get_spatial_detector() -> SpatialDetector:
     from ..config import get_settings
 
-    if get_settings().use_mock_models:
+    settings = get_settings()
+    if settings.image_ml_url:
+        return MicroserviceSpatialDetector()
+    if settings.use_mock_models:
         return MockSpatialDetector()
-    from ..forensic.image.spatial import TorchSpatialDetector
+    from ..forensic.image.spatial import TFKerasSpatialDetector
 
-    return TorchSpatialDetector()
+    return TFKerasSpatialDetector()
 
 
 def get_frequency_detector() -> FrequencyDetector:
@@ -263,7 +345,10 @@ def get_metadata_detector() -> MetadataDetector:
 def get_temporal_detector() -> TemporalDetector:
     from ..config import get_settings
 
-    if get_settings().use_mock_models:
+    settings = get_settings()
+    if settings.video_ml_url:
+        return MicroserviceTemporalDetector()
+    if settings.use_mock_models:
         return MockTemporalDetector()
     from ..forensic.video.temporal import TemporalAnalyzer
 
@@ -273,7 +358,10 @@ def get_temporal_detector() -> TemporalDetector:
 def get_audio_detector() -> AudioDetector:
     from ..config import get_settings
 
-    if get_settings().use_mock_models:
+    settings = get_settings()
+    if settings.audio_ml_url:
+        return MicroserviceAudioDetector()
+    if settings.use_mock_models:
         return MockAudioDetector()
     from ..forensic.audio.voice_detector import VoiceDetector
 
@@ -289,8 +377,10 @@ def get_rppg_detector() -> RPPGDetector:
 def get_av_sync_detector() -> AVSyncDetector:
     from ..config import get_settings
 
-    if get_settings().use_mock_models:
+    settings = get_settings()
+    if settings.use_mock_models:
         return MockAVSyncDetector()
     from ..forensic.video.av_sync import AVSyncAnalyzer
 
     return AVSyncAnalyzer()
+

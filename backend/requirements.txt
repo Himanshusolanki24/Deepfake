@@ -28,15 +28,13 @@ Pillow>=10.2
 opencv-python-headless>=4.9
 librosa>=0.10
 
-# ML (optional runtime; app degrades gracefully without them)
-torch>=2.2 ; sys_platform != "darwin"
-torchvision>=0.17 ; sys_platform != "darwin"
+# ML (TensorFlow 2.x CPU-oriented runtime)
+tensorflow-cpu>=2.15.0
 onnxruntime>=1.17
 scikit-learn>=1.4
 xgboost>=2.0 ; sys_platform != "win32"
 lightgbm>=4.3 ; sys_platform != "win32"
 mediapipe>=0.10.14
-pytorch-grad-cam>=1.5
 
 # Reports
 weasyprint>=61
