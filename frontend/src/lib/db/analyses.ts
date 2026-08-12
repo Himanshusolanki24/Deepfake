@@ -78,7 +78,7 @@ export async function getAnalysis(id: string, userId: string): Promise<AnalysisD
 
   const { data, error } = await supabase
     .from("analyses")
-    .select("id, user_id, case_id, media_type, filename, status, verdict, confidence, confidence_lower, confidence_upper, processing_time_ms, explanation, created_at, updated_at, completed_at")
+    .select("id, user_id, case_id, media_type, filename, status, verdict, confidence, confidence_lower, confidence_upper, processing_time_ms, explanation, created_at, updated_at, completed_at, deleted_at, deleted_by")
     .eq("id", id)
     .eq("user_id", userId)
     .maybeSingle();
@@ -112,7 +112,7 @@ export async function createAnalysis(
   const { data, error } = await supabase
     .from("analyses")
     .insert(insert)
-    .select("id, user_id, case_id, media_type, filename, status, verdict, confidence, confidence_lower, confidence_upper, processing_time_ms, explanation, created_at, updated_at, completed_at")
+    .select("id, user_id, case_id, media_type, filename, status, verdict, confidence, confidence_lower, confidence_upper, processing_time_ms, explanation, created_at, updated_at, completed_at, deleted_at, deleted_by")
     .single();
   if (error) throw error;
   return data;
