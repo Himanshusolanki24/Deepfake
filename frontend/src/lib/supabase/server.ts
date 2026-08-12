@@ -3,14 +3,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import type { Database } from "./database.types";
 
-export async function createClient(): Promise<SupabaseClient<Database>> {
+export async function createClient(): Promise<SupabaseClient<Database> | null> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   if (!url || !anonKey) {
-    throw new Error(
-      "Missing Supabase environment variables. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY."
-    );
+    // During build-time prerendering, env vars may not be available.
+    // Return null so callers can handle gracefully (e.g. redirect to login).
+    return null;
   }
 
   const cookieStore = await cookies();

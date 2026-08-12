@@ -393,6 +393,39 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["audit_logs"]["Insert"]>;
         Relationships: [];
       };
+      usage_records: {
+        Row: {
+          id: string;
+          user_id: string;
+          period_start: string;
+          period_end: string;
+          analysis_count: number;
+          storage_bytes: number;
+          tier: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          period_start: string;
+          period_end: string;
+          analysis_count?: number;
+          storage_bytes?: number;
+          tier?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["usage_records"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "usage_records_user_id_fkey";
+            columns: ["user_id"];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
     Views: {
       [_ in never]: never;

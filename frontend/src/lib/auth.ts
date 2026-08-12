@@ -6,6 +6,8 @@ import type { Database } from "@/lib/supabase/database.types";
 /** Returns the authenticated Supabase user, or null when not signed in. */
 export async function getAuthUser() {
   const supabase = await createClient();
+  if (!supabase) return null;
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -18,6 +20,10 @@ export async function getAuthUser() {
 /** Server-side guard: redirects to /auth/login when unauthenticated. */
 export async function requireAuth() {
   const supabase = await createClient();
+  if (!supabase) {
+    redirect("/auth/login");
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -32,6 +38,8 @@ export async function requireAuth() {
 /** Loads the profile row (RLS-scoped) for the given user id. */
 export async function getProfile(userId: string) {
   const supabase = await createClient();
+  if (!supabase) return null;
+
   const { data } = await supabase
     .from("profiles")
     .select("id, email, full_name, avatar_url, role, created_at, updated_at")
