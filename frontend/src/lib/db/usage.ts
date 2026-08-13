@@ -6,9 +6,6 @@
  */
 
 import { createRequiredClient as createClient } from "@/lib/supabase/server";
-import type { Database } from "@/lib/supabase/database.types";
-
-type UsageRecordRow = Database["public"]["Tables"]["usage_records"]["Row"];
 
 export interface UsageSummary {
   userId: string;

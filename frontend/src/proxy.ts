@@ -8,7 +8,7 @@ function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => (p === "/" ? pathname === "/" : pathname.startsWith(p)));
 }
 
-const AUTH_REDIRECT_EXCLUDE = ["_next", "favicon", "fonts", "images", "icons"];
+const AUTH_REDIRECT_EXCLUDE = ["_next", "favicon", "fonts", "images", "icons", "opengraph"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

@@ -31,11 +31,17 @@ export default function OpenGraphImage() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: 30,
-              color: "#2563eb",
             }}
           >
-            ✦
+            <div
+              style={{
+                width: 26,
+                height: 26,
+                borderRadius: 6,
+                background: "#2563eb",
+                transform: "rotate(45deg)",
+              }}
+            />
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: 5 }}>

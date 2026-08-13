@@ -4,7 +4,7 @@ import { DEMO_ANALYSIS_BY_ID, HISTORY_ANALYSES } from "@/mocks/analyses";
 import { listRegisteredAnalyses, lookupRegisteredAnalysis } from "@/mocks/registry";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS !== "false";
+const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
 
 export interface ApiConfig {
   apiUrl: string;
